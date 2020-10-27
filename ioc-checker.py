@@ -26,90 +26,56 @@ def parse_ip(ip):
     except:
         return False
 
+def get_response (url):
+    query_payload = {'query': entity}
+    query_headers = {'content-type': 'application/json', 'Accept-Charset': 'UTF-8', 'User-Agent': 'Mozilla/5.0'}
 
-def fetch_details(urls, user, pwd, entity):
+    resp = requests.get(url, params=payload, headers=headers, auth=HTTPBasicAuth(user, pwd))
+
+    jsonResp = resp.json()
+
+    jsonResponse = str(jsonResp).replace('\'', '\"').replace('False', '\"False\"').replace('None', '[]').replace('True', '\"True\"')
+
+    return jsonResponse
+
+def fetch_details(user, pwd, entity):
     # global declaration below so that these variables are available for code inside main()
     global classification, sinkhole, everCompromised, count_of_subdom, dynamicDns, mal_results, osint_results
-    for ptUrl in urls:
-        if ptUrl == ptEnrichUrl:
-            payload = {'query': entity}
-            headers = {'content-type': 'application/json',
-                       'Accept-Charset': 'UTF-8', 'User-Agent': 'Mozilla/5.0'}
-            # In earlier requests version, params was replaced by data
-            resp = requests.get(ptUrl,
-                                params=payload,
-                                headers=headers,
-                                auth=HTTPBasicAuth(user, pwd))
 
-            jsonResp = resp.json()
-            # The original json values had non-json quotes which we are replacing with double quotes.
-            # Also, strings like True, False, None are causing problems for which we are replacing them using nested replace function
-            jsonResponse = str(jsonResp).replace('\'', '\"').replace(
-                'False', '\"False\"').replace('None', '[]').replace('True', '\"True\"')
+    URL_passivetotal_root = "https://api.passivetotal.org/v2/enrichment"
+    URL_passivetotal_malw = "https://api.passivetotal.org/v2/enrichment/malware"
+    URL_passivetotal_osint = "https://api.passivetotal.org/v2/enrichment/osint"
 
-            # print(jsonResponse)
-            # Converting json string objects to json dictionary
-            try:
-                pt_dict = json.loads(jsonResponse)
-                classification = pt_dict['classification']
-                sinkhole = pt_dict['sinkhole']
-                everCompromised = pt_dict['everCompromised']
-                count_of_subdom = len(pt_dict['subdomains'])
-                dynamicDns = pt_dict['dynamicDns']
-            except:
-                #print('Error in parsing Enrichment json data for:', entity)
-                count_of_subdom = "JSON_Error"
-                classification = "JSON_Error"
-                dynamicDns = "JSON_Error"
-                continue
-        elif ptUrl == ptMalwareUrl:
-            payload = {'query': entity}
-            headers = {'content-type': 'application/json',
-                       'Accept-Charset': 'UTF-8', 'User-Agent': 'Mozilla/5.0'}
-            # In earlier requests version, params was replaced by data
-            resp = requests.get(ptUrl,
-                                params=payload,
-                                headers=headers,
-                                auth=HTTPBasicAuth(user, pwd))
+    r = get_response(url=URL_passivetotal_root)
 
-            jsonResp = resp.json()
-            # The original json values had non-json quotes which we are replacing with double quotes.
-            # Also, strings like True, False, None are causing problems for which we are replacing them using nested replace function
-            jsonResponse = str(jsonResp).replace('\'', '\"').replace(
-                'False', '\"False\"').replace('None', '[]').replace('True', '\"True\"')
-            # print(jsonResponse)
-            # Converting json string objects to json dictionary
-            try:
-                pt_dict = json.loads(jsonResponse)
-                mal_results = len(pt_dict['results'])
-            except:
-                #print('Error in parsing Malware json data for:', entity)
-                mal_results = 'null'
-                continue
-        else:
-            payload = {'query': entity}
-            headers = {'content-type': 'application/json',
-                       'Accept-Charset': 'UTF-8', 'User-Agent': 'Mozilla/5.0'}
-            # In earlier requests version, params was replaced by data
-            resp = requests.get(ptUrl,
-                                params=payload,
-                                headers=headers,
-                                auth=HTTPBasicAuth(user, pwd))
+    try:
+        pt_dict = json.loads(r)
+        classification = pt_dict['classification']
+        sinkhole = pt_dict['sinkhole']
+        everCompromised = pt_dict['everCompromised']
+        count_of_subdom = len(pt_dict['subdomains'])
+        dynamicDns = pt_dict['dynamicDns']
+    except:
+        count_of_subdom = "JSON_Error"
+        classification = "JSON_Error"
+        dynamicDns = "JSON_Error"
 
-            jsonResp = resp.json()
-            # The original json values had non-json quotes which we are replacing with double quotes.
-            # Also, strings like True, False, None are causing problems for which we are replacing them using nested replace function
-            jsonResponse = str(jsonResp).replace('\'', '\"').replace(
-                'False', '\"False\"').replace('None', '[]').replace('True', '\"True\"')
-            # print(jsonResponse)
-            # Converting json string objects to json dictionary
-            try:
-                pt_dict = json.loads(jsonResponse)
-                osint_results = len(pt_dict['results'])
-            except:
-                #print('Error in parsing OSINT json data for:', entity)
-                osint_results = 'null'
-                continue
+    r = get_response(url=URL_passivetotal_malw)
+    
+    try:
+        pt_dict = json.loads(r)
+        mal_results = len(pt_dict['results'])
+    except:
+        mal_results = 'null'
+
+    r = get_response(url=URL_passivetotal_osint)
+
+    try:
+        pt_dict = json.loads(r)
+        osint_results = len(pt_dict['results'])
+    except:
+        osint_results = 'null'
+
     return classification, sinkhole, everCompromised, count_of_subdom, dynamicDns, mal_results, osint_results
 
 
@@ -145,13 +111,13 @@ class siteReview():
         return category
 
 
-def lst_parse(lst, urls, user, pwd, apikey):
-    bot = siteReview()
+def lst_parse(lst, user, pwd, apikey):
+    # bot = siteReview()
     with open(os.path.join(lst), 'r') as f:
         for ent in f:
             entity = ent.strip()
             #print('Processing:', entity)
-            fetch_details(urls, user, pwd, entity)
+            fetch_details(user, pwd, entity)
 
             val = bot.ioc_search(entity)
 
@@ -231,9 +197,9 @@ def lst_parse(lst, urls, user, pwd, apikey):
                       osint_results, vt_data, val, sep=",")
 
 
-def cmd_parse(cmd, urls, user, pwd, apikey):
+def cmd_parse(cmd, user, pwd, apikey):
     entity = cmd
-    fetch_details(urls, user, pwd, entity)
+    fetch_details(user, pwd, entity)
     bot = siteReview()
     val = bot.ioc_search(entity)
 
@@ -325,33 +291,20 @@ def cmd_parse(cmd, urls, user, pwd, apikey):
 
 
 def main():
-    # Creating a list of URLs
-    global ptEnrichUrl, ptMalwareUrl, ptOsintUrl
-    ################### Passive Total URLs ########################
-    ptEnrichUrl = "https://api.passivetotal.org/v2/enrichment"
-    ptMalwareUrl = "https://api.passivetotal.org/v2/enrichment/malware"
-    ptOsintUrl = "https://api.passivetotal.org/v2/enrichment/osint"
-    #################################################
-
-    urls = [ptEnrichUrl, ptMalwareUrl, ptOsintUrl]
-
     p = ArgumentParser()
-    p.add_argument("-l", "--lst", type=str,
-                   help="Submit domain/IP list separated by new line specifying the absolute path of file")
+    p.add_argument("-l", "--lst", type=str, help="Submit domain/IP list separated by new line specifying the absolute path of file")
     p.add_argument("-c", "--cmd", type=str, help="Enter the single domain/IP")
     args = p.parse_args()
 
     if args.lst:
-        print('ioc,classification,sinkhole,everCompromised,subdomains,dynamicDns,mal_results,osint_results,VT_Data,Symantec_Sitereview')
-        lst_parse(args.lst, urls, user, pwd, apikey)
+        # print('ioc,classification,sinkhole,everCompromised,subdomains,dynamicDns,mal_results,osint_results,VT_Data,Symantec_Sitereview')
+        lst_parse(args.lst, user, pwd, apikey)
     elif args.cmd:
-        print('ioc,classification,sinkhole,everCompromised,subdomains,dynamicDns,mal_results,osint_results,VT_Data,Symantec_Sitereview')
-        cmd_parse(args.cmd, urls, user, pwd, apikey)
+        # print('ioc,classification,sinkhole,everCompromised,subdomains,dynamicDns,mal_results,osint_results,VT_Data,Symantec_Sitereview')
+        cmd_parse(args.cmd, user, pwd, apikey)
     else:
         print("\n" + "Note: Please supplement the single domain/IP by using switch -c or a list of domains/IPs with the path by using switch -l" + "\n")
 
 
 if __name__ == "__main__":
-    main()
-else:
-    pass
+
